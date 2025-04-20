@@ -1,0 +1,1 @@
+A tool to split words in a list into two syllables, and creating groups of non-overlapping syllables which when combined still create words in the original list.
