@@ -41,7 +41,7 @@ public static class SyllableLogic {
 		return unchanged;
 	}
 
-	public static List<List<HashSet<string>[]>> GroupUniques(Dictionary<string, HashSet<string>> startDict, int setCount, int uniqueCount) {
+	public static List<HashSet<string>[]> GroupSyllables(Dictionary<string, HashSet<string>> startDict, int groupSize) {
 
 		var startKeys = startDict.Keys.ToArray();
 		string[][] searchArrays;
@@ -51,9 +51,9 @@ public static class SyllableLogic {
 		string print = "";
 		int maxSymbol = 0;
 
-		for (int i = 0; i < startKeys.Length - setCount; ++i) {
+		for (int i = 0; i < startKeys.Length - groupSize; ++i) {
 
-			searchArrays = CreateCombinations(startDict[startKeys[i]].ToArray(), setCount);
+			searchArrays = CreateCombinations(startDict[startKeys[i]].ToArray(), groupSize);
 
 			for (int j = 0; j < searchArrays.Length; ++j) {
 				potentialResult.Clear();
@@ -70,7 +70,7 @@ public static class SyllableLogic {
 					}
 				}
 
-				print = "\r" + "Creating groups: " + (i + 1) + " / " + (startKeys.Length - setCount) + " | " + (j + 1) + " / " + searchArrays.Length;
+				print = "\r" + "Creating groups: " + (i + 1) + " / " + (startKeys.Length - groupSize) + " | " + (j + 1) + " / " + searchArrays.Length;
 				maxSymbol = Math.Max(maxSymbol, print.Length);
 				var loop = maxSymbol - print.Length;
 
@@ -79,11 +79,11 @@ public static class SyllableLogic {
 				}
 				Console.Write(print);
 
-				if (potentialResult.Count < setCount - 1) {
+				if (potentialResult.Count < groupSize - 1) {
 					continue;
 				}
 
-				var resultCombinations = CreateCombinations(potentialResult.ToArray(), setCount - 1);
+				var resultCombinations = CreateCombinations(potentialResult.ToArray(), groupSize - 1);
 				foreach (var combination in resultCombinations) {
 					var set = combination.ToHashSet();
 					set.Add(startKeys[i]);
@@ -91,85 +91,125 @@ public static class SyllableLogic {
 				}
 			}
 		}
-		Console.WriteLine();
+		return results;
+	}
+
+
+	public static List<List<HashSet<string>[]>> CreateUniqueSets(List<HashSet<string>[]> groups, int uniqueCount, bool skip = false) {
+		if (groups.Count < uniqueCount || uniqueCount <= 0) {
+			Console.Write($"Selecting Uniques: 0 / 0");
+			return [];
+		}
+
+		skip = skip && uniqueCount == 1;
+		
+
+		if (!skip && (groups.Count.ToString().Length-1) * uniqueCount > 8) {
+			Console.Write("Over hundred million combinations, skipping unique sets.");
+			Console.WriteLine();
+			skip = true;
+		}
+
 
 		var uniqueResults = new List<List<HashSet<string>[]>>();
+
+		if (skip) {
+			foreach (var group in groups) {
+				uniqueResults.Add([group]);
+			}
+			Console.Write($"Selecting Uniques: {groups.Count} / {groups.Count}");
+			return uniqueResults;
+		}
+
+
 		var potentialUnique = new List<HashSet<string>[]>();
-		var usedSyllables = new HashSet<string>();
-		var usedWords = new HashSet<string>();
+		var usedSyllables = new List<HashSet<string>>();
+		var usedWords = new List<HashSet<string>>();
 
-		if (results.Count < uniqueCount) {
-			Console.Write("Selecting Uniques: 0 / 0 | 0 / 0");
+
+		double maxCount = 1;
+
+		for (int i = groups.Count - uniqueCount + 1; i <= groups.Count; ++i) {
+			maxCount *= i;
+			maxCount /= groups.Count - i + 1;
 		}
 
-		for (int i = 0; i < results.Count - uniqueCount + 1; ++i) {
-			potentialUnique.Add(results[i]);
-			foreach (var start in results[i][0]) {
-				usedSyllables.Add(start);
-				foreach (var end in results[i][1]) {
-					usedSyllables.Add(end);
-					usedWords.Add(start + end);
-				}
-			}
-			for (int j = i + 1; j < results.Count - uniqueCount + 1; ++j) {
-				var containsSame = false;
+		maxCount = Math.Round(maxCount);
+		var counter = 1;
 
-				foreach (var start in results[j][0]) {
-					if (usedSyllables.Contains(start)) {
-						containsSame = true; 
-						break;
-					}
-					foreach (var end in results[j][1]) {
-						if (usedSyllables.Contains(end)) {
-							containsSame = true;
-							break;
-						}
-						if (usedWords.Contains(start + end)) {
-							containsSame = true;
-							break;
-						}
-					}
-					if (containsSame) break;
-				}
-
-				print = "\r" + "Selecting Uniques: " + (i + 1) + " / " + (results.Count - uniqueCount) + " | " + (j - i + 1) + " / " + (results.Count - uniqueCount + 1 - i);
-				maxSymbol = Math.Max(maxSymbol, print.Length);
-				var loop = maxSymbol - print.Length;
-
-				for (int k = 0; k < loop; ++k) {
-					print += " ";
-				}
-
-				Console.Write(print);
-
-				if (containsSame) continue;
-				potentialUnique.Add(results[j]);
-
-				foreach (var start in results[j][0]) {
-					usedSyllables.Add(start);
-					foreach (var end in results[j][1]) {
-						usedSyllables.Add(end);
-						usedWords.Add(start + end);
-					}
-				}
-			}
-
-			if (potentialUnique.Count >= uniqueCount) {
-				var subArray = new HashSet<string>[potentialUnique.Count - 1][];
-				Array.Copy(potentialUnique.ToArray(), 1, subArray, 0, subArray.Length);
-				var uniqueCombinations = CreateCombinations(subArray, uniqueCount - 1);
-				foreach (var combination in uniqueCombinations) {
-					var list = combination.ToList();
-					list.Add(results[i]);
-					uniqueResults.Add(list);
-				}
-			}
-			potentialUnique.Clear();
-			usedSyllables.Clear();
-			usedWords.Clear();
-		}
+		UniqueRecursion(0);
 
 		return uniqueResults;
+
+		void UniqueRecursion(int startIndex) {
+			bool containsSame;
+			for (int i = startIndex; i < groups.Count - uniqueCount + potentialUnique.Count + 1; ++i) {
+				containsSame = false;
+
+				if (potentialUnique.Count > 0) {
+					foreach (var start in groups[i][0]) {
+						for (int j = 0; j < usedSyllables.Count; ++j) {
+							if (usedSyllables[j].Contains(start)) {
+								containsSame = true;
+								break;
+							}
+
+							foreach (var end in groups[i][1]) {
+								if (usedSyllables[j].Contains(end)) {
+									containsSame = true;
+									break;
+								}
+								if (usedWords[j].Contains(start + end)) {
+									containsSame = true;
+									break;
+								}
+							}
+							if (containsSame) break;
+						}
+						if (containsSame) break;
+					}
+				}
+
+
+				Console.Write($"\rSelecting Uniques: {counter} / {maxCount}");
+
+				if (containsSame) {
+					if (potentialUnique.Count < uniqueCount - 1) {
+						counter += (int)Math.Pow(groups.Count - uniqueCount - i + potentialUnique.Count + 1, uniqueCount - 1);
+					} else {
+						counter++;
+					}
+					Console.Write($"\rSelecting Uniques: {counter} / {maxCount}");
+					continue;
+				}
+
+				usedWords.Add([]);
+				usedSyllables.Add([]);
+				potentialUnique.Add(groups[i]);
+				FillUsed(groups[i], usedSyllables.Last(), usedWords.Last());
+
+				if (potentialUnique.Count == uniqueCount) {
+					uniqueResults.Add([.. potentialUnique]);
+					counter++;
+				} else {
+					UniqueRecursion(i + 1);
+				}
+
+				potentialUnique.RemoveAt(potentialUnique.Count - 1);
+				usedSyllables.RemoveAt(usedSyllables.Count - 1);
+				usedWords.RemoveAt(usedWords.Count - 1);
+			}
+		}
+
+		void FillUsed(HashSet<string>[] group, HashSet<string> syllables, HashSet<string> words) {
+			foreach (var start in group[0]) {
+				syllables.Add(start);
+				foreach (var end in group[1]) {
+					syllables.Add(end);
+					words.Add(start + end);
+				}
+			}
+		}
 	}
 
 

@@ -6,11 +6,21 @@ var filename = "wordlist.txt";
 var path = Path.Combine(projectDirectory, filename);
 
 if (!File.Exists(path)) {
-	Console.WriteLine("No list available!");
+	Console.WriteLine($"{path} not found!");
 	Console.ReadKey();
 }
-
 string[] words = File.ReadAllLines(path);
+
+var excludeFile = "excludedSyllables.txt";
+var excludedSyllables = new HashSet<string>();
+path = Path.Combine(projectDirectory, excludeFile);
+
+if (File.Exists(path)) {
+	excludedSyllables = File.ReadAllLines(path).ToHashSet();
+	if (excludedSyllables.Count > 0) {
+		Console.WriteLine($"Excluding {excludedSyllables.Count} syllables.");
+	}
+}
 
 var minSyllableLength = 2;
 var maxSyllableLength = 3;
@@ -19,7 +29,6 @@ var startSyllables = new Dictionary<string, HashSet<string>>();
 var endSyllables = new Dictionary<string, HashSet<string>>();
 
 for (int i = 0; i < words.Length; ++i) {
-
 	for (int j = minSyllableLength; j <= maxSyllableLength; ++j) {
 		if (words[i].Length < j + minSyllableLength || words[i].Length > j + maxSyllableLength) {
 			continue;
@@ -27,6 +36,8 @@ for (int i = 0; i < words.Length; ++i) {
 
 		var startSyl = words[i][..j];
 		var endSyl = words[i][j..];
+
+		if (excludedSyllables.Contains(startSyl) || excludedSyllables.Contains(endSyl)) continue;
 
 		SyllableLogic.AddSyllable(startSyllables, startSyl, endSyl);
 		SyllableLogic.AddSyllable(endSyllables, endSyl, startSyl);
@@ -61,8 +72,12 @@ while (!startOk && !endOk) {
 var uniqueSetCount = 2;
 
 Console.WriteLine();
-var uniqueSets = SyllableLogic.GroupUniques(startSyllables, setCount, uniqueSetCount);
+var groups = SyllableLogic.GroupSyllables(startSyllables, setCount);
 Console.WriteLine();
+var skip = false;
+var uniqueSets = SyllableLogic.CreateUniqueSets(groups, uniqueSetCount, skip);
+Console.WriteLine();
+
 var resultSyllables = new List<string>();
 var resultWords = new List<string>();
 var resultUnique = new HashSet<string>();
