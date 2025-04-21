@@ -41,19 +41,40 @@ public static class SyllableLogic {
 		return unchanged;
 	}
 
-	public static List<HashSet<string>[]> GroupSyllables(Dictionary<string, HashSet<string>> startDict, int groupSize) {
+	public static List<HashSet<string>[]> GroupSyllables(Dictionary<string, HashSet<string>> startDict, int groupSize, int maxCombinations = -1) {
 
 		var startKeys = startDict.Keys.ToArray();
 		string[][] searchArrays;
 		List<string> potentialResult = new List<string>();
 		var results = new List<HashSet<string>[]>();
 
+		if (maxCombinations == 0) {
+			return results;
+		}
+
 		string print = "";
 		int maxSymbol = 0;
 
-		for (int i = 0; i < startKeys.Length - groupSize; ++i) {
+		for (int i = 0; i < startKeys.Length - groupSize + 1; ++i) {
 
 			searchArrays = CreateCombinations(startDict[startKeys[i]].ToArray(), groupSize);
+
+			if (maxCombinations > 0 && searchArrays.Length > maxCombinations) {
+				var indices = new List<int>();
+				var tempResults = new List<string[]>();
+				for (int k = 0; k < maxCombinations; ++k) {
+					int random = Random.Shared.Next(searchArrays.Length - indices.Count);
+					foreach (int r in indices) {
+						if (random >= r) {
+							random++;
+						}
+					}
+					indices.Add(random);
+					tempResults.Add(searchArrays[random]);
+				}
+
+				searchArrays = tempResults.ToArray();
+			}
 
 			for (int j = 0; j < searchArrays.Length; ++j) {
 				potentialResult.Clear();
@@ -70,7 +91,7 @@ public static class SyllableLogic {
 					}
 				}
 
-				print = "\r" + "Creating groups: " + (i + 1) + " / " + (startKeys.Length - groupSize) + " | " + (j + 1) + " / " + searchArrays.Length;
+				print = "\r" + "Creating groups: " + (i + 1) + " / " + (startKeys.Length - groupSize + 1) + " | " + (j + 1) + " / " + searchArrays.Length;
 				maxSymbol = Math.Max(maxSymbol, print.Length);
 				var loop = maxSymbol - print.Length;
 
@@ -84,6 +105,7 @@ public static class SyllableLogic {
 				}
 
 				var resultCombinations = CreateCombinations(potentialResult.ToArray(), groupSize - 1);
+
 				foreach (var combination in resultCombinations) {
 					var set = combination.ToHashSet();
 					set.Add(startKeys[i]);
@@ -95,21 +117,22 @@ public static class SyllableLogic {
 	}
 
 
-	public static List<List<HashSet<string>[]>> CreateUniqueSets(List<HashSet<string>[]> groups, int uniqueCount, bool skip = false) {
-		if (groups.Count < uniqueCount || uniqueCount <= 0) {
-			Console.Write($"Selecting Uniques: 0 / 0");
+	public static List<List<HashSet<string>[]>> CreateUniqueSets(List<HashSet<string>[]> groups, int uniqueCount, int minSyllable = -1, bool skip = false) {
+		if (minSyllable == 0) {
+			Console.Write($"Selecting unique sets: {groups.Count} / {groups.Count}");
 			return [];
 		}
 
-		skip = skip && uniqueCount == 1;
-		
+		skip = skip || uniqueCount <= 1 || groups.Count < uniqueCount;
 
-		if (!skip && (groups.Count.ToString().Length-1) * uniqueCount > 8) {
+		var filterSubstrings = minSyllable > 0;
+
+
+		if (!skip && (groups.Count.ToString().Length - 1) * uniqueCount > 8) {
 			Console.Write("Over hundred million combinations, skipping unique sets.");
 			Console.WriteLine();
 			skip = true;
 		}
-
 
 		var uniqueResults = new List<List<HashSet<string>[]>>();
 
@@ -117,7 +140,7 @@ public static class SyllableLogic {
 			foreach (var group in groups) {
 				uniqueResults.Add([group]);
 			}
-			Console.Write($"Selecting Uniques: {groups.Count} / {groups.Count}");
+			Console.Write($"Selecting unique sets: {groups.Count} / {groups.Count}");
 			return uniqueResults;
 		}
 
@@ -125,6 +148,7 @@ public static class SyllableLogic {
 		var potentialUnique = new List<HashSet<string>[]>();
 		var usedSyllables = new List<HashSet<string>>();
 		var usedWords = new List<HashSet<string>>();
+		var usedSubstrings = new List<HashSet<string>>();
 
 
 		double maxCount = 1;
@@ -135,7 +159,7 @@ public static class SyllableLogic {
 		}
 
 		maxCount = Math.Round(maxCount);
-		var counter = 1;
+		var counter = 0;
 
 		UniqueRecursion(0);
 
@@ -148,38 +172,44 @@ public static class SyllableLogic {
 
 				if (potentialUnique.Count > 0) {
 					foreach (var start in groups[i][0]) {
+						var endsFilled = false;
 						for (int j = 0; j < usedSyllables.Count; ++j) {
-							if (usedSyllables[j].Contains(start)) {
+							if (filterSubstrings) {
+								if (usedSyllables[j].Contains(start[..minSyllable])) {
+									containsSame = true;
+									break;
+								}
+							} else if (usedSyllables[j].Contains(start)) {
 								containsSame = true;
 								break;
 							}
 
 							foreach (var end in groups[i][1]) {
-								if (usedSyllables[j].Contains(end)) {
+								if (usedWords[j].Contains(start + end)) {
 									containsSame = true;
 									break;
 								}
-								if (usedWords[j].Contains(start + end)) {
+								if (endsFilled) continue;
+								if (filterSubstrings) {
+									if (usedSyllables[j].Contains(end[..minSyllable])) {
+										containsSame = true;
+										break;
+									}
+								} else if (usedSyllables[j].Contains(end)) {
 									containsSame = true;
 									break;
 								}
 							}
 							if (containsSame) break;
 						}
+						endsFilled = true;
 						if (containsSame) break;
 					}
 				}
 
-
-				Console.Write($"\rSelecting Uniques: {counter} / {maxCount}");
-
 				if (containsSame) {
-					if (potentialUnique.Count < uniqueCount - 1) {
-						counter += (int)Math.Pow(groups.Count - uniqueCount - i + potentialUnique.Count + 1, uniqueCount - 1);
-					} else {
-						counter++;
-					}
-					Console.Write($"\rSelecting Uniques: {counter} / {maxCount}");
+					counter += (int)Math.Pow(groups.Count - uniqueCount - i + potentialUnique.Count + 1, uniqueCount - 1 - potentialUnique.Count);
+					Console.Write($"\rSelecting unique sets: {counter} / {maxCount}");
 					continue;
 				}
 
@@ -198,15 +228,29 @@ public static class SyllableLogic {
 				potentialUnique.RemoveAt(potentialUnique.Count - 1);
 				usedSyllables.RemoveAt(usedSyllables.Count - 1);
 				usedWords.RemoveAt(usedWords.Count - 1);
+
+				Console.Write($"\rSelecting unique sets: {counter} / {maxCount}");
 			}
 		}
 
 		void FillUsed(HashSet<string>[] group, HashSet<string> syllables, HashSet<string> words) {
+			var endsFilled = false;
 			foreach (var start in group[0]) {
-				syllables.Add(start);
+
+				if (filterSubstrings) {
+					syllables.Add(start[..minSyllable]);
+				} else {
+					syllables.Add(start);
+				}
+
 				foreach (var end in group[1]) {
-					syllables.Add(end);
 					words.Add(start + end);
+					if (endsFilled) continue;
+					if (filterSubstrings) {
+						syllables.Add(end[..minSyllable]);
+					} else {
+						syllables.Add(end);
+					}
 				}
 			}
 		}
