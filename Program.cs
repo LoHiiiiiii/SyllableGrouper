@@ -81,12 +81,13 @@ while (!startOk && !endOk) {
 
 Console.WriteLine();
 var groups = SyllableLogic.GroupSyllables(startSyllables, groupSize);
-Console.WriteLine();
 if (groups.Count == 0) {
 	Console.Write("No groups found.");
 	Console.ReadKey();
 	return;
 }
+Console.Write($"{groups.Count} groups found.");
+Console.WriteLine();
 
 var uniqueSets = SyllableLogic.CreateUniqueSets(groups, uniqueSetCount, (excludeSubstringStarts) ? minSyllableLength : -1, skipUniques);
 Console.WriteLine();

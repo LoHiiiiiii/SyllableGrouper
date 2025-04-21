@@ -127,10 +127,10 @@ public static class SyllableLogic {
 
 		var filterSubstrings = minSyllable > 0;
 
-
+		var tooMany = false;
 		if (!skip && (groups.Count.ToString().Length - 1) * uniqueCount > 8) {
 			Console.Write("Over hundred million combinations, skipping unique sets.");
-			Console.WriteLine();
+			tooMany = true;
 			skip = true;
 		}
 
@@ -140,7 +140,9 @@ public static class SyllableLogic {
 			foreach (var group in groups) {
 				uniqueResults.Add([group]);
 			}
-			Console.Write($"Selecting unique sets: {groups.Count} / {groups.Count}");
+			if (!tooMany) {
+				Console.Write($"Skipping unique sets.");
+			}
 			return uniqueResults;
 		}
 
